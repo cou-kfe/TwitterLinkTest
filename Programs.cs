@@ -15,7 +15,7 @@ class Program
         "https://nitter.privacydev.net/kou_wuwa/rss"
     };
 
-    static string webhookUrl = "https://canary.discord.com/api/webhooks/1487807842852405328/xCK26ukZnhBo-_s4lUNGXNtX2sj2i1nMFmcWpQCOcZKJNbnym1uItPIgG4943D-wBnC_";
+    static string webhookUrl = Environment.GetEnvironmentVariable("DISCORD_WEBHOOK");
 
     static string lastId = "";
     static bool isFirstRun = true;
@@ -60,10 +60,10 @@ class Program
             {
                 Console.WriteLine("新着検知");
 
-                if (!isFirstRun) // 初回スパム防止
-                {
+                // if (!isFirstRun) // 初回スパム防止
+                // {
                     await SendToDiscord(link);
-                }
+                // }
 
                 lastId = id;
                 isFirstRun = false;
