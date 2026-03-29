@@ -10,9 +10,11 @@ class Program
 {
     static string[] feeds = new[]
     {
-        "https://nitter.net/kou_wuwa/rss",
-        "https://nitter.poast.org/kou_wuwa/rss",
-        "https://nitter.privacydev.net/kou_wuwa/rss"
+    "https://nitter.net/kou_wuwa/rss",
+    "https://nitter.poast.org/kou_wuwa/rss",
+    "https://nitter.privacydev.net/kou_wuwa/rss",
+    "https://nitter.1d4.us/kou_wuwa/rss",
+    "https://nitter.kavin.rocks/kou_wuwa/rss"
     };
 
     static string webhookUrl = Environment.GetEnvironmentVariable("DISCORD_WEBHOOK");
@@ -78,44 +80,48 @@ class Program
             Console.WriteLine("CheckFeedエラー: " + ex.ToString());
         }
     }
-
+    
     static async Task<string> GetRss()
     {
         foreach (var url in feeds)
         {
-            try
+            for (int retry = 0; retry < 2; retry++)
             {
-                Console.WriteLine("試行: " + url);
-
-                var handler = new HttpClientHandler()
+                try
                 {
-                    AutomaticDecompression = DecompressionMethods.All
-                };
-
-                using var client = new HttpClient(handler);
-
-                // ★ 超重要：User-Agent
-                client.DefaultRequestHeaders.Add("User-Agent", "Mozilla/5.0");
-
-                client.Timeout = TimeSpan.FromSeconds(10);
-
-                var res = await client.GetAsync(url);
-
-                Console.WriteLine("Status: " + res.StatusCode);
-
-                if (res.IsSuccessStatusCode)
+                    Console.WriteLine($"試行: {url} (retry {retry})");
+    
+                    var handler = new HttpClientHandler()
+                    {
+                        AutomaticDecompression = DecompressionMethods.All
+                    };
+    
+                    using var client = new HttpClient(handler);
+    
+                    client.DefaultRequestHeaders.Add(
+                        "User-Agent",
+                        "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
+                    );
+    
+                    client.Timeout = TimeSpan.FromSeconds(10);
+    
+                    var res = await client.GetAsync(url);
+    
+                    Console.WriteLine("Status: " + res.StatusCode);
+    
+                    if (res.IsSuccessStatusCode)
+                    {
+                        Console.WriteLine("RSS取得成功");
+                        return await res.Content.ReadAsStringAsync();
+                    }
+                }
+                catch (Exception ex)
                 {
-                    var content = await res.Content.ReadAsStringAsync();
-                    Console.WriteLine("RSS取得成功");
-                    return content;
+                    Console.WriteLine("RSS失敗: " + ex.Message);
                 }
             }
-            catch (Exception ex)
-            {
-                Console.WriteLine("RSS失敗: " + ex.Message);
-            }
         }
-
+    
         throw new Exception("RSS全滅");
     }
 
