@@ -10,9 +10,9 @@ class Program
 {
     static string[] feeds = new[]
     {
-        "https://nitter.net/f41co_/rss",
-        "https://nitter.poast.org/f41co_/rss",
-        "https://nitter.privacydev.net/f41co_/rss"
+        "https://nitter.net/kou_wuwa/rss",
+        "https://nitter.poast.org/kou_wuwa/rss",
+        "https://nitter.privacydev.net/kou_wuwa/rss"
     };
 
     static string webhookUrl = "https://canary.discord.com/api/webhooks/1487807842852405328/xCK26ukZnhBo-_s4lUNGXNtX2sj2i1nMFmcWpQCOcZKJNbnym1uItPIgG4943D-wBnC_";
