@@ -46,7 +46,7 @@ class Program
                 if (string.IsNullOrEmpty(lastId))
                 {
                     lastId = id;
-                    continue; // 初回スキップ
+                    // continue; // 初回スキップ
                 }
 
                 if (id != lastId)
