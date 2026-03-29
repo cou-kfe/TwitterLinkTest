@@ -33,7 +33,7 @@ class Program
         while (true)
         {
             await CheckFeed();
-            await Task.Delay(TimeSpan.FromMinutes(5));
+            await Task.Delay(TimeSpan.FromMinutes(3));
         }
     }
 
