@@ -64,8 +64,7 @@ class Program
 
                 // if (!isFirstRun) // 初回スパム防止
                 // {
-                    // await SendToDiscord(ConvertToX(link));
-                    await SendToDiscord(link);
+                    await SendToDiscord(ConvertToX(link));
                 // }
 
                 lastId = id;
