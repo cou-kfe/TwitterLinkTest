@@ -12,6 +12,7 @@ class Program
     static string webhookUrl = Environment.GetEnvironmentVariable("DISCORD_WEBHOOK");
 
     static string lastId = "";
+    static HashSet<string> sentIds = new();
 
     static async Task Main()
     {
@@ -35,25 +36,23 @@ class Program
 
             var doc = XDocument.Parse(xml);
             var items = doc.Descendants("item").Take(5);
-
+            
+            var items = doc.Descendants("item").Take(5).Reverse(); // 古い順にするのが重要
+            
             foreach (var item in items)
             {
                 var link = item.Element("link")?.Value;
                 var id = link?.Split('/').Last();
-
+            
                 if (string.IsNullOrEmpty(id)) continue;
-
-                if (string.IsNullOrEmpty(lastId))
-                {
-                    lastId = id;
-                    // continue; // 初回スキップ
-                }
-
-                if (id != lastId)
+            
+                if (!sentIds.Contains(id))
                 {
                     Console.WriteLine($"新着: {link}");
-
+            
                     await SendToDiscord(ConvertToX(link));
+            
+                    sentIds.Add(id);
                 }
             }
 
