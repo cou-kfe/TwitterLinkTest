@@ -5,13 +5,13 @@ using System.Net.Http;
 using System.Text;
 using System.Threading.Tasks;
 using System.Xml.Linq;
+using System.Collections.Generic;
 
 class Program
 {
     static string user = Environment.GetEnvironmentVariable("TWITTER_USER");
     static string webhookUrl = Environment.GetEnvironmentVariable("DISCORD_WEBHOOK");
 
-    static string lastId = "";
     static HashSet<string> sentIds = new();
 
     static async Task Main()
@@ -35,31 +35,30 @@ class Program
             var xml = await GetRss();
 
             var doc = XDocument.Parse(xml);
-            var items = doc.Descendants("item").Take(5);
-            
-            var items = doc.Descendants("item").Take(5).Reverse(); // 古い順にするのが重要
-            
+            var items = doc.Descendants("item").Take(5).Reverse();
+
             foreach (var item in items)
             {
                 var link = item.Element("link")?.Value;
                 var id = link?.Split('/').Last();
-            
+
                 if (string.IsNullOrEmpty(id)) continue;
-            
+
                 if (!sentIds.Contains(id))
                 {
                     Console.WriteLine($"新着: {link}");
-            
+
                     await SendToDiscord(ConvertToX(link));
-            
+
                     sentIds.Add(id);
                 }
             }
 
-            var latest = items.FirstOrDefault()?.Element("link")?.Value?.Split('/').Last();
-            if (!string.IsNullOrEmpty(latest))
+            // メモリ肥大防止
+            if (sentIds.Count > 100)
             {
-                lastId = latest;
+                sentIds.Clear();
+                Console.WriteLine("sentIdsリセット");
             }
         }
         catch (Exception ex)
@@ -114,10 +113,10 @@ class Program
     static async Task SendToDiscord(string url)
     {
         using var client = new HttpClient();
-    
+
         var json = $"{{\"content\":\"{url}\"}}";
         var content = new StringContent(json, Encoding.UTF8, "application/json");
-    
+
         await client.PostAsync(webhookUrl, content);
     }
 
