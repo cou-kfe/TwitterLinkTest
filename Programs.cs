@@ -66,6 +66,9 @@ class Program
         var json = $"{{\"content\":\"{message}\"}}";
         var content = new StringContent(json, Encoding.UTF8, "application/json");
 
-        await client.PostAsync(webhookUrl, content);
+        // await client.PostAsync(webhookUrl, content);
+        var res = await client.PostAsync(webhookUrl, content);
+
+        Console.WriteLine("Discord status: " + res.StatusCode);
     }
 }
