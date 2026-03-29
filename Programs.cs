@@ -115,22 +115,11 @@ class Program
     static async Task SendToDiscord(string url)
     {
         using var client = new HttpClient();
-
-        var json = $@"
-{{
-  ""embeds"": [
-    {{
-      ""title"": ""📢 {user} の新着ポスト"",
-      ""url"": ""{url}""
-    }}
-  ]
-}}";
-
+    
+        var json = $"{{\"content\":\"{url}\"}}";
         var content = new StringContent(json, Encoding.UTF8, "application/json");
-
-        var res = await client.PostAsync(webhookUrl, content);
-
-        Console.WriteLine("Discord: " + res.StatusCode);
+    
+        await client.PostAsync(webhookUrl, content);
     }
 
     static string ConvertToX(string url)
