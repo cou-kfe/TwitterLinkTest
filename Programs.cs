@@ -1,5 +1,6 @@
 using System;
 using System.Linq;
+using System.Net;
 using System.Net.Http;
 using System.Text;
 using System.Threading.Tasks;
@@ -7,14 +8,25 @@ using System.Xml.Linq;
 
 class Program
 {
-    static string rssUrl = "https://nitter.net/f41co_/rss";
-    static string webhookUrl = "https://canary.discord.com/api/webhooks/1487797235751059548/NAbEzqkDyoMeNbeMiAjsQXmd3-dWvuT3yqDZexDJt20G51PEjSffCkdmsuoaz8RuAXFC";
-    
+    static string[] feeds = new[]
+    {
+        "https://nitter.net/f41co_/rss",
+        "https://nitter.poast.org/f41co_/rss",
+        "https://nitter.privacydev.net/f41co_/rss"
+    };
+
+    static string webhookUrl = "https://canary.discord.com/api/webhooks/1487807842852405328/xCK26ukZnhBo-_s4lUNGXNtX2sj2i1nMFmcWpQCOcZKJNbnym1uItPIgG4943D-wBnC_";
+
     static string lastId = "";
+    static bool isFirstRun = true;
 
     static async Task Main()
     {
         Console.WriteLine("起動");
+
+        // TLS対策（重要）
+        ServicePointManager.SecurityProtocol =
+            SecurityProtocolType.Tls12 | SecurityProtocolType.Tls13;
 
         while (true)
         {
@@ -27,26 +39,34 @@ class Program
     {
         try
         {
-            using var client = new HttpClient();
+            var xml = await GetRss();
 
-            var xml = await client.GetStringAsync(rssUrl);
             var doc = XDocument.Parse(xml);
-
             var item = doc.Descendants("item").FirstOrDefault();
-            if (item == null) return;
+
+            if (item == null)
+            {
+                Console.WriteLine("itemなし");
+                return;
+            }
 
             var link = item.Element("link")?.Value;
-            var id = link?.Split('/').Last();
+            Console.WriteLine("取得リンク: " + link);
 
+            var id = link?.Split('/').Last();
             if (string.IsNullOrEmpty(id)) return;
 
             if (id != lastId)
             {
-                Console.WriteLine("新着: " + link);
+                Console.WriteLine("新着検知");
 
-                await SendToDiscord(link);
+                if (!isFirstRun) // 初回スパム防止
+                {
+                    await SendToDiscord(link);
+                }
 
                 lastId = id;
+                isFirstRun = false;
             }
             else
             {
@@ -55,20 +75,68 @@ class Program
         }
         catch (Exception ex)
         {
-            Console.WriteLine("エラー: " + ex.Message);
+            Console.WriteLine("CheckFeedエラー: " + ex.ToString());
         }
+    }
+
+    static async Task<string> GetRss()
+    {
+        foreach (var url in feeds)
+        {
+            try
+            {
+                Console.WriteLine("試行: " + url);
+
+                var handler = new HttpClientHandler()
+                {
+                    AutomaticDecompression = DecompressionMethods.All
+                };
+
+                using var client = new HttpClient(handler);
+
+                // ★ 超重要：User-Agent
+                client.DefaultRequestHeaders.Add("User-Agent", "Mozilla/5.0");
+
+                client.Timeout = TimeSpan.FromSeconds(10);
+
+                var res = await client.GetAsync(url);
+
+                Console.WriteLine("Status: " + res.StatusCode);
+
+                if (res.IsSuccessStatusCode)
+                {
+                    var content = await res.Content.ReadAsStringAsync();
+                    Console.WriteLine("RSS取得成功");
+                    return content;
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("RSS失敗: " + ex.Message);
+            }
+        }
+
+        throw new Exception("RSS全滅");
     }
 
     static async Task SendToDiscord(string message)
     {
-        using var client = new HttpClient();
+        try
+        {
+            using var client = new HttpClient();
 
-        var json = $"{{\"content\":\"{message}\"}}";
-        var content = new StringContent(json, Encoding.UTF8, "application/json");
+            client.DefaultRequestHeaders.Add("User-Agent", "Mozilla/5.0");
 
-        // await client.PostAsync(webhookUrl, content);
-        var res = await client.PostAsync(webhookUrl, content);
+            var json = $"{{\"content\":\"{message}\"}}";
+            var content = new StringContent(json, Encoding.UTF8, "application/json");
 
-        Console.WriteLine("Discord status: " + res.StatusCode);
+            var res = await client.PostAsync(webhookUrl, content);
+
+            Console.WriteLine("Discord status: " + res.StatusCode);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("Discord送信エラー: " + ex.ToString());
+        }
     }
 }
