@@ -8,7 +8,7 @@ using System.Xml.Linq;
 class Program
 {
     static string rssUrl = "https://rsshub.app/twitter/user/WW_JP_Official";
-    static string webhookUrl = "ここにWebhook";
+    static string webhookUrl = "https://canary.discord.com/api/webhooks/1487747185339535550/6PHhaqc0uu7PDxzW-TaAQGTQ6gvul1urdqv_KlHQmfIn29E9FlysTSpWitpjMYtPjCiH";
     
     static string lastId = "";
 
