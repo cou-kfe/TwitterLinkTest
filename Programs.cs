@@ -5,45 +5,33 @@ using System.Net.Http;
 using System.Text;
 using System.Threading.Tasks;
 using System.Xml.Linq;
-using System.Collections.Generic;
 
 class Program
 {
+    static string user = Environment.GetEnvironmentVariable("TWITTER_USER");
     static string webhookUrl = Environment.GetEnvironmentVariable("DISCORD_WEBHOOK");
 
-    // 環境変数から取得
-    static List<string> users = Environment
-        .GetEnvironmentVariable("TWITTER_USERS")?
-        .Split(',', StringSplitOptions.RemoveEmptyEntries)
-        .Select(x => x.Trim())
-        .ToList() ?? new List<string>();
-
-    // 各ユーザーごとに最新IDを保持
-    static Dictionary<string, string> lastIds = new();
+    static string lastId = "";
 
     static async Task Main()
     {
-        Console.WriteLine("起動");
+        Console.WriteLine($"起動: {user}");
 
         ServicePointManager.SecurityProtocol =
             SecurityProtocolType.Tls12 | SecurityProtocolType.Tls13;
 
         while (true)
         {
-            foreach (var user in users)
-            {
-                await CheckFeed(user);
-            }
-
+            await CheckFeed();
             await Task.Delay(TimeSpan.FromMinutes(3));
         }
     }
 
-    static async Task CheckFeed(string user)
+    static async Task CheckFeed()
     {
         try
         {
-            var xml = await GetRss(user);
+            var xml = await GetRss();
 
             var doc = XDocument.Parse(xml);
             var items = doc.Descendants("item").Take(5);
@@ -55,34 +43,33 @@ class Program
 
                 if (string.IsNullOrEmpty(id)) continue;
 
-                if (!lastIds.ContainsKey(user))
+                if (string.IsNullOrEmpty(lastId))
                 {
-                    lastIds[user] = id;
-                    continue; // 初回はスキップ
+                    lastId = id;
+                    continue; // 初回スキップ
                 }
 
-                if (id != lastIds[user])
+                if (id != lastId)
                 {
-                    Console.WriteLine($"[{user}] 新着: {link}");
+                    Console.WriteLine($"新着: {link}");
 
-                    await SendToDiscord(user, ConvertToX(link));
+                    await SendToDiscord(ConvertToX(link));
                 }
             }
 
-            // 最新ID更新
             var latest = items.FirstOrDefault()?.Element("link")?.Value?.Split('/').Last();
             if (!string.IsNullOrEmpty(latest))
             {
-                lastIds[user] = latest;
+                lastId = latest;
             }
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[{user}] エラー: " + ex.Message);
+            Console.WriteLine("エラー: " + ex.Message);
         }
     }
 
-    static async Task<string> GetRss(string user)
+    static async Task<string> GetRss()
     {
         var feeds = new[]
         {
@@ -115,6 +102,7 @@ class Program
 
                 if (res.IsSuccessStatusCode)
                 {
+                    Console.WriteLine("RSS取得成功");
                     return await res.Content.ReadAsStringAsync();
                 }
             }
@@ -124,7 +112,7 @@ class Program
         throw new Exception("RSS取得失敗");
     }
 
-    static async Task SendToDiscord(string user, string url)
+    static async Task SendToDiscord(string url)
     {
         using var client = new HttpClient();
 
@@ -132,7 +120,7 @@ class Program
 {{
   ""embeds"": [
     {{
-      ""title"": ""{user} の新着ポスト"",
+      ""title"": ""📢 {user} の新着ポスト"",
       ""url"": ""{url}""
     }}
   ]
