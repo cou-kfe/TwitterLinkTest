@@ -10,11 +10,11 @@ class Program
 {
     static string[] feeds = new[]
     {
-    "https://nitter.net/kou_wuwa/rss",
-    "https://nitter.poast.org/kou_wuwa/rss",
-    "https://nitter.privacydev.net/kou_wuwa/rss",
-    "https://nitter.1d4.us/kou_wuwa/rss",
-    "https://nitter.kavin.rocks/kou_wuwa/rss"
+    "https://nitter.net/WW_JP_Official/rss",
+    "https://nitter.poast.org/WW_JP_Official/rss",
+    "https://nitter.privacydev.net/WW_JP_Official/rss",
+    "https://nitter.1d4.us/WW_JP_Official/rss",
+    "https://nitter.kavin.rocks/WW_JP_Official/rss"
     };
 
     static string webhookUrl = Environment.GetEnvironmentVariable("DISCORD_WEBHOOK");
