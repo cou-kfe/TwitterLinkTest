@@ -62,7 +62,7 @@ class Program
 
                 // if (!isFirstRun) // 初回スパム防止
                 // {
-                    await SendToDiscord(link);
+                    await SendToDiscord(ConvertToX(link));
                 // }
 
                 lastId = id;
@@ -138,5 +138,24 @@ class Program
         {
             Console.WriteLine("Discord送信エラー: " + ex.ToString());
         }
+    }
+
+    static string ConvertToX(string url)
+    {
+        if (string.IsNullOrEmpty(url)) return url;
+    
+        var converted = url
+            .Replace("https://nitter.net/", "https://x.com/")
+            .Replace("https://nitter.poast.org/", "https://x.com/")
+            .Replace("https://nitter.privacydev.net/", "https://x.com/");
+    
+        // #m など削除
+        var hashIndex = converted.IndexOf('#');
+        if (hashIndex != -1)
+        {
+            converted = converted.Substring(0, hashIndex);
+        }
+    
+        return converted;
     }
 }
