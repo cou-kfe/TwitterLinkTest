@@ -5,163 +5,161 @@ using System.Net.Http;
 using System.Text;
 using System.Threading.Tasks;
 using System.Xml.Linq;
+using System.Collections.Generic;
 
 class Program
 {
-    static string[] feeds = new[]
-    {
-    "https://nitter.net/WW_JP_Official/rss",
-    "https://nitter.poast.org/WW_JP_Official/rss",
-    "https://nitter.privacydev.net/WW_JP_Official/rss",
-    "https://nitter.1d4.us/WW_JP_Official/rss",
-    "https://nitter.kavin.rocks/WW_JP_Official/rss"
-    };
-
     static string webhookUrl = Environment.GetEnvironmentVariable("DISCORD_WEBHOOK");
 
-    static string lastId = "";
-    static bool isFirstRun = true;
+    // 環境変数から取得
+    static List<string> users = Environment
+        .GetEnvironmentVariable("TWITTER_USERS")?
+        .Split(',', StringSplitOptions.RemoveEmptyEntries)
+        .Select(x => x.Trim())
+        .ToList() ?? new List<string>();
+
+    // 各ユーザーごとに最新IDを保持
+    static Dictionary<string, string> lastIds = new();
 
     static async Task Main()
     {
         Console.WriteLine("起動");
 
-        // TLS対策（重要）
         ServicePointManager.SecurityProtocol =
             SecurityProtocolType.Tls12 | SecurityProtocolType.Tls13;
 
         while (true)
         {
-            await CheckFeed();
+            foreach (var user in users)
+            {
+                await CheckFeed(user);
+            }
+
             await Task.Delay(TimeSpan.FromMinutes(3));
         }
     }
 
-    static async Task CheckFeed()
+    static async Task CheckFeed(string user)
     {
         try
         {
-            var xml = await GetRss();
+            var xml = await GetRss(user);
 
             var doc = XDocument.Parse(xml);
-            var item = doc.Descendants("item").FirstOrDefault();
+            var items = doc.Descendants("item").Take(5);
 
-            if (item == null)
+            foreach (var item in items)
             {
-                Console.WriteLine("itemなし");
-                return;
+                var link = item.Element("link")?.Value;
+                var id = link?.Split('/').Last();
+
+                if (string.IsNullOrEmpty(id)) continue;
+
+                if (!lastIds.ContainsKey(user))
+                {
+                    lastIds[user] = id;
+                    continue; // 初回はスキップ
+                }
+
+                if (id != lastIds[user])
+                {
+                    Console.WriteLine($"[{user}] 新着: {link}");
+
+                    await SendToDiscord(user, ConvertToX(link));
+                }
             }
 
-            var link = item.Element("link")?.Value;
-            Console.WriteLine("取得リンク: " + link);
-
-            var id = link?.Split('/').Last();
-            if (string.IsNullOrEmpty(id)) return;
-
-            if (id != lastId)
+            // 最新ID更新
+            var latest = items.FirstOrDefault()?.Element("link")?.Value?.Split('/').Last();
+            if (!string.IsNullOrEmpty(latest))
             {
-                Console.WriteLine("新着検知");
-
-                // if (!isFirstRun) // 初回スパム防止
-                // {
-                    await SendToDiscord(ConvertToX(link));
-                // }
-
-                lastId = id;
-                isFirstRun = false;
-            }
-            else
-            {
-                Console.WriteLine("更新なし");
+                lastIds[user] = latest;
             }
         }
         catch (Exception ex)
         {
-            Console.WriteLine("CheckFeedエラー: " + ex.ToString());
+            Console.WriteLine($"[{user}] エラー: " + ex.Message);
         }
     }
-    
-    static async Task<string> GetRss()
+
+    static async Task<string> GetRss(string user)
     {
+        var feeds = new[]
+        {
+            $"https://nitter.net/{user}/rss",
+            $"https://nitter.poast.org/{user}/rss",
+            $"https://nitter.privacydev.net/{user}/rss"
+        };
+
         foreach (var url in feeds)
         {
-            for (int retry = 0; retry < 2; retry++)
+            try
             {
-                try
+                Console.WriteLine("試行: " + url);
+
+                var handler = new HttpClientHandler()
                 {
-                    Console.WriteLine($"試行: {url} (retry {retry})");
-    
-                    var handler = new HttpClientHandler()
-                    {
-                        AutomaticDecompression = DecompressionMethods.All
-                    };
-    
-                    using var client = new HttpClient(handler);
-    
-                    client.DefaultRequestHeaders.Add(
-                        "User-Agent",
-                        "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
-                    );
-    
-                    client.Timeout = TimeSpan.FromSeconds(10);
-    
-                    var res = await client.GetAsync(url);
-    
-                    Console.WriteLine("Status: " + res.StatusCode);
-    
-                    if (res.IsSuccessStatusCode)
-                    {
-                        Console.WriteLine("RSS取得成功");
-                        return await res.Content.ReadAsStringAsync();
-                    }
-                }
-                catch (Exception ex)
+                    AutomaticDecompression = DecompressionMethods.All
+                };
+
+                using var client = new HttpClient(handler);
+
+                client.DefaultRequestHeaders.Add(
+                    "User-Agent",
+                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
+                );
+
+                client.Timeout = TimeSpan.FromSeconds(10);
+
+                var res = await client.GetAsync(url);
+
+                if (res.IsSuccessStatusCode)
                 {
-                    Console.WriteLine("RSS失敗: " + ex.Message);
+                    return await res.Content.ReadAsStringAsync();
                 }
             }
+            catch { }
         }
-    
-        throw new Exception("RSS全滅");
+
+        throw new Exception("RSS取得失敗");
     }
 
-    static async Task SendToDiscord(string message)
+    static async Task SendToDiscord(string user, string url)
     {
-        try
-        {
-            using var client = new HttpClient();
+        using var client = new HttpClient();
 
-            client.DefaultRequestHeaders.Add("User-Agent", "Mozilla/5.0");
+        var json = $@"
+{{
+  ""embeds"": [
+    {{
+      ""title"": ""{user} の新着ポスト"",
+      ""url"": ""{url}""
+    }}
+  ]
+}}";
 
-            var json = $"{{\"content\":\"{message}\"}}";
-            var content = new StringContent(json, Encoding.UTF8, "application/json");
+        var content = new StringContent(json, Encoding.UTF8, "application/json");
 
-            var res = await client.PostAsync(webhookUrl, content);
+        var res = await client.PostAsync(webhookUrl, content);
 
-            Console.WriteLine("Discord status: " + res.StatusCode);
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine("Discord送信エラー: " + ex.ToString());
-        }
+        Console.WriteLine("Discord: " + res.StatusCode);
     }
 
     static string ConvertToX(string url)
     {
         if (string.IsNullOrEmpty(url)) return url;
-    
+
         var converted = url
             .Replace("https://nitter.net/", "https://x.com/")
             .Replace("https://nitter.poast.org/", "https://x.com/")
             .Replace("https://nitter.privacydev.net/", "https://x.com/");
-    
-        // #m など削除
+
         var hashIndex = converted.IndexOf('#');
         if (hashIndex != -1)
         {
             converted = converted.Substring(0, hashIndex);
         }
-    
+
         return converted;
     }
 }
